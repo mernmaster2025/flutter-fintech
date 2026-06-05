@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../state/app_controller.dart';
 import '../theme/app_colors.dart';
+import '../utils/formatters.dart';
+import '../widgets/action_sheets.dart';
 import '../widgets/premium_components.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -8,6 +11,7 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final controller = AppScope.watch(context);
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(18, 12, 18, 132),
@@ -15,17 +19,17 @@ class ProfileScreen extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 860),
           child: Column(
-            children: const [
-              AnimatedEntrance(child: _ProfileHero()),
-              SizedBox(height: 22),
+            children: [
+              AnimatedEntrance(child: _ProfileHero(controller: controller)),
+              const SizedBox(height: 22),
               AnimatedEntrance(
-                delay: Duration(milliseconds: 120),
-                child: _MembershipCard(),
+                delay: const Duration(milliseconds: 120),
+                child: _MembershipCard(controller: controller),
               ),
-              SizedBox(height: 22),
+              const SizedBox(height: 22),
               AnimatedEntrance(
-                delay: Duration(milliseconds: 220),
-                child: _SettingsPanel(),
+                delay: const Duration(milliseconds: 220),
+                child: _SettingsPanel(controller: controller),
               ),
             ],
           ),
@@ -36,7 +40,9 @@ class ProfileScreen extends StatelessWidget {
 }
 
 class _ProfileHero extends StatelessWidget {
-  const _ProfileHero();
+  const _ProfileHero({required this.controller});
+
+  final AppController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +74,7 @@ class _ProfileHero extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                'A',
+                controller.profile.name.characters.first,
                 style: Theme.of(context).textTheme.displaySmall?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w900,
@@ -78,30 +84,37 @@ class _ProfileHero extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Text(
-            'Alex Morgan',
+            controller.profile.name,
             style: Theme.of(context).textTheme.headlineMedium,
           ),
           const SizedBox(height: 8),
           Text(
-            'Founder plan • Verified treasury account',
+            '${controller.profile.plan} • ${controller.profile.email}',
             style: Theme.of(context).textTheme.bodyLarge,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 18),
-          const Wrap(
+          Wrap(
             alignment: WrapAlignment.center,
             spacing: 10,
             runSpacing: 10,
             children: [
               StatusChip(
-                label: 'Security 98',
-                color: AppColors.emerald,
+                label: controller.profile.verified ? 'Verified' : 'Pending',
+                color: controller.profile.verified
+                    ? AppColors.emerald
+                    : AppColors.orange,
                 icon: Icons.shield_rounded,
               ),
               StatusChip(
-                label: 'Premium',
+                label: '${controller.orders.length} orders',
                 color: AppColors.pink,
-                icon: Icons.workspace_premium_rounded,
+                icon: Icons.candlestick_chart_rounded,
+              ),
+              StatusChip(
+                label: '${controller.transfers.length} transfers',
+                color: AppColors.cyan,
+                icon: Icons.near_me_rounded,
               ),
             ],
           ),
@@ -112,10 +125,13 @@ class _ProfileHero extends StatelessWidget {
 }
 
 class _MembershipCard extends StatelessWidget {
-  const _MembershipCard();
+  const _MembershipCard({required this.controller});
+
+  final AppController controller;
 
   @override
   Widget build(BuildContext context) {
+    final progress = (controller.portfolioValue / 250000).clamp(0.08, 1.0);
     return GlassCard(
       gradient: AppColors.cardGradient,
       child: Column(
@@ -127,19 +143,19 @@ class _MembershipCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Astra Infinite',
+                  controller.profile.plan,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
-              const StatusChip(label: 'Elite', color: AppColors.lime),
+              const StatusChip(label: 'Backend-ready', color: AppColors.lime),
             ],
           ),
           const SizedBox(height: 18),
           Text(
-            'Priority support, advanced limits, treasury sweeps, and early access to AI money movement.',
+            'Portfolio permissions, trading preferences, alert settings, and card controls are saved locally and ready to map to authenticated APIs.',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: Colors.white.withValues(alpha: 0.82),
             ),
@@ -148,7 +164,7 @@ class _MembershipCard extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: 0.82),
+              tween: Tween(begin: 0, end: progress.toDouble()),
               duration: const Duration(milliseconds: 1000),
               curve: Curves.easeOutCubic,
               builder: (context, value, _) {
@@ -163,7 +179,7 @@ class _MembershipCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            '82% to next reward tier',
+            '${money(controller.portfolioValue, decimals: 0)} tracked toward private client tier',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: Colors.white.withValues(alpha: 0.76),
             ),
@@ -175,34 +191,45 @@ class _MembershipCard extends StatelessWidget {
 }
 
 class _SettingsPanel extends StatelessWidget {
-  const _SettingsPanel();
+  const _SettingsPanel({required this.controller});
+
+  final AppController controller;
 
   @override
   Widget build(BuildContext context) {
+    final settings = controller.settings;
     final items = [
       (
         Icons.notifications_active_rounded,
         'Smart alerts',
-        'Only the signals that matter',
+        'Market, order, and transfer signals',
         AppColors.cyan,
+        settings.smartAlerts,
+        (bool value) => settings.copyWith(smartAlerts: value),
       ),
       (
         Icons.lock_person_rounded,
-        'Privacy vault',
-        'Biometric approvals and device trust',
+        'Biometric approvals',
+        'Require device approval before trades',
         AppColors.emerald,
+        settings.biometricApprovals,
+        (bool value) => settings.copyWith(biometricApprovals: value),
       ),
       (
         Icons.palette_rounded,
-        'Appearance',
-        'Dynamic aurora theme enabled',
+        'Dynamic aurora theme',
+        'Keep premium animated backgrounds active',
         AppColors.pink,
+        settings.dynamicTheme,
+        (bool value) => settings.copyWith(dynamicTheme: value),
       ),
       (
         Icons.support_agent_rounded,
         'Concierge',
-        'Priority fintech specialist',
+        'Priority crypto specialist support',
         AppColors.orange,
+        settings.concierge,
+        (bool value) => settings.copyWith(concierge: value),
       ),
     ];
 
@@ -210,7 +237,7 @@ class _SettingsPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionHeader(title: 'Experience'),
+          const SectionHeader(title: 'Experience', action: 'Saved locally'),
           for (final item in items) ...[
             Row(
               children: [
@@ -240,14 +267,30 @@ class _SettingsPanel extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppColors.textSecondary,
+                Switch.adaptive(
+                  value: item.$5,
+                  activeThumbColor: AppColors.emerald,
+                  onChanged: (value) async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    await controller.updateSettings(item.$6(value));
+                    if (controller.message != null) {
+                      messenger.showSnackBar(
+                        SnackBar(content: Text(controller.message!)),
+                      );
+                    }
+                  },
                 ),
               ],
             ),
             if (item != items.last) const SizedBox(height: 18),
           ],
+          const SizedBox(height: 20),
+          GradientButton(
+            label: 'Export account report',
+            icon: Icons.file_download_rounded,
+            expanded: true,
+            onPressed: () => showReportSheet(context),
+          ),
         ],
       ),
     );

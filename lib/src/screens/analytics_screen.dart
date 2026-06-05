@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../models/finance_models.dart';
+import '../state/app_controller.dart';
 import '../theme/app_colors.dart';
+import '../utils/formatters.dart';
+import '../widgets/action_sheets.dart';
 import '../widgets/premium_components.dart';
 
 class AnalyticsScreen extends StatelessWidget {
@@ -9,6 +12,7 @@ class AnalyticsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final controller = AppScope.watch(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 860;
@@ -21,23 +25,34 @@ class AnalyticsScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AnimatedEntrance(child: _AnalyticsHero(isWide: isWide)),
+                  AnimatedEntrance(
+                    child: _AnalyticsHero(
+                      controller: controller,
+                      isWide: isWide,
+                    ),
+                  ),
                   const SizedBox(height: 20),
                   if (isWide)
-                    const Row(
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(flex: 6, child: _CashflowCard()),
-                        SizedBox(width: 18),
-                        Expanded(flex: 4, child: _SignalColumn()),
+                        Expanded(
+                          flex: 6,
+                          child: _PortfolioChart(controller: controller),
+                        ),
+                        const SizedBox(width: 18),
+                        Expanded(
+                          flex: 4,
+                          child: _SignalColumn(controller: controller),
+                        ),
                       ],
                     )
                   else
-                    const Column(
+                    Column(
                       children: [
-                        _CashflowCard(),
-                        SizedBox(height: 18),
-                        _SignalColumn(),
+                        _PortfolioChart(controller: controller),
+                        const SizedBox(height: 18),
+                        _SignalColumn(controller: controller),
                       ],
                     ),
                 ],
@@ -51,8 +66,9 @@ class AnalyticsScreen extends StatelessWidget {
 }
 
 class _AnalyticsHero extends StatelessWidget {
-  const _AnalyticsHero({required this.isWide});
+  const _AnalyticsHero({required this.controller, required this.isWide});
 
+  final AppController controller;
   final bool isWide;
 
   @override
@@ -61,38 +77,50 @@ class _AnalyticsHero extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const StatusChip(
-          label: 'Predictive pulse',
+          label: 'Predictive crypto pulse',
           color: AppColors.pink,
           icon: Icons.auto_awesome_rounded,
         ),
         const SizedBox(height: 22),
         Text(
-          'Your financial graph is compounding faster than planned.',
+          'Portfolio intelligence backed by live mock market state.',
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 12),
         Text(
-          'Revenue velocity, burn, and treasury yield are all trending in the top quartile.',
+          'Allocation, P/L, risk, watchlist, and activity are computed from persisted holdings and simulated market ticks.',
           style: Theme.of(context).textTheme.bodyLarge,
+        ),
+        const SizedBox(height: 18),
+        GradientButton(
+          label: 'Export report',
+          icon: Icons.file_download_rounded,
+          onPressed: () => showReportSheet(context),
         ),
       ],
     );
-    const metrics = Row(
+    final metrics = Row(
       children: [
         Expanded(
           child: _RadialMetric(
-            label: 'Runway',
-            value: '26m',
-            progress: 0.82,
-            color: AppColors.emerald,
+            label: 'Return',
+            value: percent(controller.unrealizedPnLPercent),
+            progress: (controller.unrealizedPnLPercent.abs() / 100).clamp(
+              0.08,
+              1,
+            ),
+            color: controller.unrealizedPnL >= 0
+                ? AppColors.emerald
+                : AppColors.pink,
           ),
         ),
-        SizedBox(width: 16),
+        const SizedBox(width: 16),
         Expanded(
           child: _RadialMetric(
-            label: 'Burn',
-            value: '-12%',
-            progress: 0.64,
+            label: 'Crypto',
+            value: compactMoney(controller.cryptoValue),
+            progress: (controller.cryptoValue / controller.portfolioValue)
+                .clamp(0, 1),
             color: AppColors.cyan,
           ),
         ),
@@ -115,7 +143,7 @@ class _AnalyticsHero extends StatelessWidget {
               children: [
                 Expanded(flex: 5, child: narrative),
                 const SizedBox(width: 28),
-                const Expanded(flex: 4, child: metrics),
+                Expanded(flex: 4, child: metrics),
               ],
             )
           : Column(
@@ -126,11 +154,25 @@ class _AnalyticsHero extends StatelessWidget {
   }
 }
 
-class _CashflowCard extends StatelessWidget {
-  const _CashflowCard();
+class _PortfolioChart extends StatelessWidget {
+  const _PortfolioChart({required this.controller});
+
+  final AppController controller;
 
   @override
   Widget build(BuildContext context) {
+    final points = [
+      for (final holding in controller.holdings)
+        ChartPoint(
+          controller.assetFor(holding.assetId).symbol,
+          controller.cryptoValue == 0
+              ? 0
+              : controller.holdingValue(holding.assetId) /
+                    controller.cryptoValue,
+          _assetColor(holding.assetId),
+        ),
+    ];
+
     return AnimatedEntrance(
       delay: const Duration(milliseconds: 120),
       child: GlassCard(
@@ -138,13 +180,13 @@ class _CashflowCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SectionHeader(
-              title: 'Cashflow intelligence',
-              action: 'Export',
+              title: 'Portfolio allocation',
+              action: 'Computed',
             ),
-            const SpendingChart(points: spendingBreakdown, height: 260),
+            SpendingChart(points: points, height: 260),
             const SizedBox(height: 16),
             Text(
-              'AI detected a 19% improvement in net cashflow after recurring vendor optimization.',
+              '${money(controller.cashBalance)} cash available. ${signedMoney(controller.unrealizedPnL)} unrealized P/L across ${controller.holdings.length} positions.',
               style: Theme.of(context).textTheme.bodyLarge,
             ),
           ],
@@ -155,42 +197,59 @@ class _CashflowCard extends StatelessWidget {
 }
 
 class _SignalColumn extends StatelessWidget {
-  const _SignalColumn();
+  const _SignalColumn({required this.controller});
+
+  final AppController controller;
 
   @override
   Widget build(BuildContext context) {
+    final concentration = controller.holdings.isEmpty
+        ? 0.0
+        : controller.holdings
+                  .map((holding) => controller.holdingValue(holding.assetId))
+                  .reduce((a, b) => a > b ? a : b) /
+              controller.cryptoValue *
+              100;
+    final risk = concentration > 60
+        ? 'High'
+        : concentration > 45
+        ? 'Medium'
+        : 'Low';
+
     return Column(
-      children: const [
+      children: [
         AnimatedEntrance(
-          delay: Duration(milliseconds: 160),
+          delay: const Duration(milliseconds: 160),
           child: StatWidget(
-            label: 'Treasury yield',
-            value: r'$8.4k',
-            delta: '+22%',
-            color: AppColors.emerald,
+            label: 'Daily movement',
+            value: signedMoney(controller.dailyChangeUsd),
+            delta: percent(controller.dailyChangePercent),
+            color: controller.dailyChangeUsd >= 0
+                ? AppColors.emerald
+                : AppColors.pink,
             icon: Icons.ssid_chart_rounded,
           ),
         ),
-        SizedBox(height: 16),
+        const SizedBox(height: 16),
         AnimatedEntrance(
-          delay: Duration(milliseconds: 220),
-          child: StatWidget(
-            label: 'Card efficiency',
-            value: '94%',
-            delta: '+8%',
-            color: AppColors.cyan,
-            icon: Icons.speed_rounded,
-          ),
-        ),
-        SizedBox(height: 16),
-        AnimatedEntrance(
-          delay: Duration(milliseconds: 280),
+          delay: const Duration(milliseconds: 220),
           child: StatWidget(
             label: 'Risk exposure',
-            value: 'Low',
-            delta: 'Stable',
-            color: AppColors.purple,
+            value: risk,
+            delta: '${concentration.toStringAsFixed(0)}% top',
+            color: AppColors.cyan,
             icon: Icons.shield_rounded,
+          ),
+        ),
+        const SizedBox(height: 16),
+        AnimatedEntrance(
+          delay: const Duration(milliseconds: 280),
+          child: StatWidget(
+            label: 'Executed orders',
+            value: '${controller.orders.length}',
+            delta: '${controller.transfers.length} rails',
+            color: AppColors.purple,
+            icon: Icons.candlestick_chart_rounded,
           ),
         ),
       ],
@@ -275,4 +334,14 @@ class _RingPainter extends CustomPainter {
   bool shouldRepaint(covariant _RingPainter oldDelegate) {
     return oldDelegate.progress != progress || oldDelegate.color != color;
   }
+}
+
+Color _assetColor(String assetId) {
+  return switch (assetId) {
+    'btc' => AppColors.orange,
+    'eth' => AppColors.cyan,
+    'sol' => AppColors.purple,
+    'link' => AppColors.emerald,
+    _ => AppColors.pink,
+  };
 }

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/crypto_models.dart';
 import '../../models/finance_models.dart';
+import '../../state/app_controller.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/formatters.dart';
+import '../../widgets/action_sheets.dart';
 import '../../widgets/premium_components.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -14,16 +18,13 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _balanceVisible = true;
 
-  Future<void> _refresh() async {
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-  }
-
   @override
   Widget build(BuildContext context) {
+    final controller = AppScope.watch(context);
     return RefreshIndicator(
       color: AppColors.cyan,
       backgroundColor: AppColors.ink,
-      onRefresh: _refresh,
+      onRefresh: controller.refresh,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= 920;
@@ -44,7 +45,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const AnimatedEntrance(child: _DashboardHeader()),
+                    AnimatedEntrance(
+                      child: _DashboardHeader(controller: controller),
+                    ),
                     const SizedBox(height: 22),
                     if (isWide)
                       Row(
@@ -53,6 +56,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           Expanded(
                             flex: 6,
                             child: _PrimaryColumn(
+                              controller: controller,
                               balanceVisible: _balanceVisible,
                               onToggleBalance: () {
                                 setState(
@@ -62,18 +66,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ),
                           const SizedBox(width: 22),
-                          const Expanded(flex: 4, child: _SecondaryColumn()),
+                          Expanded(
+                            flex: 4,
+                            child: _SecondaryColumn(controller: controller),
+                          ),
                         ],
                       )
                     else ...[
                       _PrimaryColumn(
+                        controller: controller,
                         balanceVisible: _balanceVisible,
                         onToggleBalance: () {
                           setState(() => _balanceVisible = !_balanceVisible);
                         },
                       ),
                       const SizedBox(height: 22),
-                      const _SecondaryColumn(),
+                      _SecondaryColumn(controller: controller),
                     ],
                   ],
                 ),
@@ -87,7 +95,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 class _DashboardHeader extends StatelessWidget {
-  const _DashboardHeader();
+  const _DashboardHeader({required this.controller});
+
+  final AppController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -98,12 +108,12 @@ class _DashboardHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Good morning, Alex',
+                'Good morning, ${controller.profile.name.split(' ').first}',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 8),
               Text(
-                'Your money is moving beautifully today.',
+                'Your crypto portfolio is live across mock backend markets.',
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
             ],
@@ -115,10 +125,13 @@ class _DashboardHeader extends StatelessWidget {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              const CircleAvatar(
+              CircleAvatar(
                 radius: 24,
                 backgroundColor: AppColors.purple,
-                child: Text('A', style: TextStyle(fontWeight: FontWeight.w900)),
+                child: Text(
+                  controller.profile.name.characters.first,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
               ),
               Positioned(
                 right: -1,
@@ -127,7 +140,9 @@ class _DashboardHeader extends StatelessWidget {
                   width: 14,
                   height: 14,
                   decoration: BoxDecoration(
-                    color: AppColors.emerald,
+                    color: controller.profile.verified
+                        ? AppColors.emerald
+                        : AppColors.orange,
                     shape: BoxShape.circle,
                     border: Border.all(color: AppColors.midnight, width: 2),
                   ),
@@ -143,10 +158,12 @@ class _DashboardHeader extends StatelessWidget {
 
 class _PrimaryColumn extends StatelessWidget {
   const _PrimaryColumn({
+    required this.controller,
     required this.balanceVisible,
     required this.onToggleBalance,
   });
 
+  final AppController controller;
   final bool balanceVisible;
   final VoidCallback onToggleBalance;
 
@@ -157,19 +174,20 @@ class _PrimaryColumn extends StatelessWidget {
         AnimatedEntrance(
           delay: const Duration(milliseconds: 80),
           child: _BalanceCard(
+            controller: controller,
             balanceVisible: balanceVisible,
             onToggleBalance: onToggleBalance,
           ),
         ),
         const SizedBox(height: 18),
-        const AnimatedEntrance(
-          delay: Duration(milliseconds: 160),
-          child: _QuickActions(),
+        AnimatedEntrance(
+          delay: const Duration(milliseconds: 160),
+          child: _QuickActions(controller: controller),
         ),
         const SizedBox(height: 22),
-        const AnimatedEntrance(
-          delay: Duration(milliseconds: 230),
-          child: _SpendingOverview(),
+        AnimatedEntrance(
+          delay: const Duration(milliseconds: 230),
+          child: _PortfolioAllocation(controller: controller),
         ),
       ],
     );
@@ -177,25 +195,27 @@ class _PrimaryColumn extends StatelessWidget {
 }
 
 class _SecondaryColumn extends StatelessWidget {
-  const _SecondaryColumn();
+  const _SecondaryColumn({required this.controller});
+
+  final AppController controller;
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      children: const [
+      children: [
         AnimatedEntrance(
-          delay: Duration(milliseconds: 120),
-          child: _CardStack(),
+          delay: const Duration(milliseconds: 120),
+          child: _Watchlist(controller: controller),
         ),
-        SizedBox(height: 22),
+        const SizedBox(height: 22),
         AnimatedEntrance(
-          delay: Duration(milliseconds: 240),
-          child: _Insights(),
+          delay: const Duration(milliseconds: 240),
+          child: _Insights(controller: controller),
         ),
-        SizedBox(height: 22),
+        const SizedBox(height: 22),
         AnimatedEntrance(
-          delay: Duration(milliseconds: 320),
-          child: _TransactionTimeline(),
+          delay: const Duration(milliseconds: 320),
+          child: _ActivityTimeline(controller: controller),
         ),
       ],
     );
@@ -204,15 +224,20 @@ class _SecondaryColumn extends StatelessWidget {
 
 class _BalanceCard extends StatelessWidget {
   const _BalanceCard({
+    required this.controller,
     required this.balanceVisible,
     required this.onToggleBalance,
   });
 
+  final AppController controller;
   final bool balanceVisible;
   final VoidCallback onToggleBalance;
 
   @override
   Widget build(BuildContext context) {
+    final gainColor = controller.dailyChangeUsd >= 0
+        ? AppColors.emerald
+        : AppColors.pink;
     return GlassCard(
       gradient: LinearGradient(
         begin: Alignment.topLeft,
@@ -228,10 +253,12 @@ class _BalanceCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const StatusChip(
-                label: 'Premium Treasury',
-                color: AppColors.cyan,
-                icon: Icons.verified_rounded,
+              StatusChip(
+                label: controller.busy ? 'Syncing backend' : 'Live portfolio',
+                color: controller.busy ? AppColors.orange : AppColors.cyan,
+                icon: controller.busy
+                    ? Icons.sync_rounded
+                    : Icons.verified_rounded,
               ),
               const Spacer(),
               IconButton(
@@ -257,7 +284,7 @@ class _BalanceCard extends StatelessWidget {
             child: balanceVisible
                 ? AnimatedCounter(
                     key: const ValueKey('visible-balance'),
-                    value: accountSnapshot.balance,
+                    value: controller.portfolioValue,
                     prefix: r'$',
                     decimals: 2,
                     style: Theme.of(context).textTheme.displaySmall?.copyWith(
@@ -277,11 +304,24 @@ class _BalanceCard extends StatelessWidget {
                   ),
           ),
           const SizedBox(height: 10),
-          Text(
-            '+${accountSnapshot.delta}% this month • \$${accountSnapshot.cashback.toStringAsFixed(0)} cashback unlocked',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Colors.white.withValues(alpha: 0.78),
-            ),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              StatusChip(
+                label:
+                    '${signedMoney(controller.dailyChangeUsd)} today • ${percent(controller.dailyChangePercent)}',
+                color: gainColor,
+                icon: controller.dailyChangeUsd >= 0
+                    ? Icons.trending_up_rounded
+                    : Icons.trending_down_rounded,
+              ),
+              StatusChip(
+                label: '${money(controller.cashBalance)} cash',
+                color: AppColors.cyan,
+                icon: Icons.account_balance_wallet_rounded,
+              ),
+            ],
           ),
           const SizedBox(height: 26),
           Wrap(
@@ -289,15 +329,21 @@ class _BalanceCard extends StatelessWidget {
             runSpacing: 12,
             children: [
               GradientButton(
-                label: 'Move money',
-                icon: Icons.near_me_rounded,
-                onPressed: () {},
+                label: 'Buy crypto',
+                icon: Icons.add_chart_rounded,
+                gradient: AppColors.successGradient,
+                onPressed: () => showOrderSheet(context, side: OrderSide.buy),
               ),
               GradientButton(
-                label: 'AI optimize',
-                icon: Icons.auto_awesome_rounded,
-                gradient: AppColors.successGradient,
-                onPressed: () {},
+                label: 'Sell',
+                icon: Icons.trending_down_rounded,
+                gradient: AppColors.warmGradient,
+                onPressed: () => showOrderSheet(context, side: OrderSide.sell),
+              ),
+              GradientButton(
+                label: 'Move money',
+                icon: Icons.near_me_rounded,
+                onPressed: () => showTransferSheet(context),
               ),
             ],
           ),
@@ -308,15 +354,67 @@ class _BalanceCard extends StatelessWidget {
 }
 
 class _QuickActions extends StatelessWidget {
-  const _QuickActions();
+  const _QuickActions({required this.controller});
+
+  final AppController controller;
 
   @override
   Widget build(BuildContext context) {
     final actions = [
-      (Icons.bolt_rounded, 'Instant pay', AppColors.cyan),
-      (Icons.swap_horiz_rounded, 'Exchange', AppColors.purple),
-      (Icons.savings_rounded, 'Vaults', AppColors.emerald),
-      (Icons.receipt_long_rounded, 'Invoices', AppColors.orange),
+      (
+        Icons.bolt_rounded,
+        'Refresh',
+        AppColors.cyan,
+        () async {
+          final messenger = ScaffoldMessenger.of(context);
+          await controller.refresh();
+          if (controller.message != null) {
+            messenger.showSnackBar(
+              SnackBar(content: Text(controller.message!)),
+            );
+          }
+        },
+      ),
+      (
+        Icons.auto_awesome_rounded,
+        'AI optimize',
+        AppColors.purple,
+        () async {
+          final messenger = ScaffoldMessenger.of(context);
+          await controller.addSystemActivity(
+            'AI rebalance prepared',
+            'Suggested BTC 48%, ETH 32%, SOL 14%, LINK 6%',
+          );
+          if (controller.message != null) {
+            messenger.showSnackBar(
+              SnackBar(content: Text(controller.message!)),
+            );
+          }
+        },
+      ),
+      (
+        Icons.receipt_long_rounded,
+        'Report',
+        AppColors.emerald,
+        () => showReportSheet(context),
+      ),
+      (
+        Icons.notifications_active_rounded,
+        'Alerts',
+        AppColors.orange,
+        () async {
+          final messenger = ScaffoldMessenger.of(context);
+          await controller.addSystemActivity(
+            'Price alert created',
+            'Watching ${controller.assets.first.symbol} volatility above 5%',
+          );
+          if (controller.message != null) {
+            messenger.showSnackBar(
+              SnackBar(content: Text(controller.message!)),
+            );
+          }
+        },
+      ),
     ];
 
     return Row(
@@ -326,7 +424,7 @@ class _QuickActions extends StatelessWidget {
             child: GlassCard(
               padding: const EdgeInsets.symmetric(vertical: 16),
               borderRadius: 24,
-              onTap: () {},
+              onTap: action.$4,
               child: Column(
                 children: [
                   Container(
@@ -357,23 +455,37 @@ class _QuickActions extends StatelessWidget {
   }
 }
 
-class _SpendingOverview extends StatelessWidget {
-  const _SpendingOverview();
+class _PortfolioAllocation extends StatelessWidget {
+  const _PortfolioAllocation({required this.controller});
+
+  final AppController controller;
 
   @override
   Widget build(BuildContext context) {
+    final points = [
+      for (final holding in controller.holdings)
+        ChartPoint(
+          controller.assetFor(holding.assetId).symbol,
+          controller.cryptoValue == 0
+              ? 0
+              : controller.holdingValue(holding.assetId) /
+                    controller.cryptoValue,
+          _assetColor(holding.assetId),
+        ),
+    ];
+
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionHeader(title: 'Spending pulse', action: 'Details'),
-          const SpendingChart(points: spendingBreakdown),
+          const SectionHeader(title: 'Allocation pulse', action: 'Live'),
+          SpendingChart(points: points),
           const SizedBox(height: 18),
           Wrap(
             spacing: 10,
             runSpacing: 10,
             children: [
-              for (final point in spendingBreakdown)
+              for (final point in points)
                 StatusChip(
                   label: '${point.label} ${(point.value * 100).round()}%',
                   color: point.color,
@@ -386,51 +498,121 @@ class _SpendingOverview extends StatelessWidget {
   }
 }
 
-class _CardStack extends StatefulWidget {
-  const _CardStack();
+class _Watchlist extends StatelessWidget {
+  const _Watchlist({required this.controller});
 
-  @override
-  State<_CardStack> createState() => _CardStackState();
-}
-
-class _CardStackState extends State<_CardStack> {
-  final _controller = PageController(viewportFraction: 0.92);
-  int _index = 0;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  final AppController controller;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionHeader(title: 'Wallet', action: 'Manage'),
-        SizedBox(
-          height: 238,
-          child: PageView.builder(
-            controller: _controller,
-            itemCount: premiumCards.length,
-            onPageChanged: (index) => setState(() => _index = index),
-            itemBuilder: (context, index) {
-              return AnimatedScale(
-                scale: _index == index ? 1 : 0.94,
-                duration: const Duration(milliseconds: 240),
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: Hero(
-                    tag: 'card-${premiumCards[index].name}',
-                    child: Material(
-                      color: Colors.transparent,
-                      child: PremiumPaymentCard(card: premiumCards[index]),
+        const SectionHeader(title: 'Market watch', action: 'Tap asset'),
+        for (final asset in controller.watchlist) ...[
+          GlassCard(
+            padding: const EdgeInsets.all(16),
+            borderRadius: 24,
+            onTap: () => showAssetDetailSheet(context, asset),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [_assetColor(asset.id), AppColors.purple],
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Center(
+                    child: Text(
+                      asset.symbol.characters.take(1).toString(),
+                      style: Theme.of(context).textTheme.labelLarge,
                     ),
                   ),
                 ),
-              );
-            },
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        asset.name,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        '${asset.symbol} • ${compactMoney(asset.marketCap)} cap',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      money(asset.price),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    Text(
+                      percent(asset.change24h),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: asset.change24h >= 0
+                            ? AppColors.emerald
+                            : AppColors.pink,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+}
+
+class _Insights extends StatelessWidget {
+  const _Insights({required this.controller});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final concentration = controller.holdings.isEmpty
+        ? 0
+        : controller.holdings
+                  .map((holding) => controller.holdingValue(holding.assetId))
+                  .reduce((a, b) => a > b ? a : b) /
+              controller.cryptoValue *
+              100;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader(title: 'AI insights'),
+        InsightCard(
+          insight: InsightData(
+            title: 'Rebalance signal',
+            detail:
+                'Largest holding is ${concentration.toStringAsFixed(0)}% of crypto exposure. Mock AI suggests keeping it below 55%.',
+            value: '${controller.holdings.length} assets',
+            gradient: AppColors.primaryGradient,
+            icon: Icons.psychology_alt_rounded,
+          ),
+        ),
+        const SizedBox(height: 14),
+        InsightCard(
+          insight: InsightData(
+            title: 'Profit engine',
+            detail:
+                'Unrealized performance is ${percent(controller.unrealizedPnLPercent)} across current holdings.',
+            value: signedMoney(controller.unrealizedPnL),
+            gradient: AppColors.successGradient,
+            icon: Icons.bolt_rounded,
           ),
         ),
       ],
@@ -438,38 +620,81 @@ class _CardStackState extends State<_CardStack> {
   }
 }
 
-class _Insights extends StatelessWidget {
-  const _Insights();
+class _ActivityTimeline extends StatelessWidget {
+  const _ActivityTimeline({required this.controller});
+
+  final AppController controller;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionHeader(title: 'AI insights'),
-        for (final insight in insights) ...[
-          InsightCard(insight: insight),
-          if (insight != insights.last) const SizedBox(height: 14),
+        const SectionHeader(title: 'Live activity', action: 'Persisted'),
+        for (final activity in controller.activities.take(6)) ...[
+          GlassCard(
+            padding: const EdgeInsets.all(14),
+            borderRadius: 24,
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: activityColor(activity.type).withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: activityColor(
+                        activity.type,
+                      ).withValues(alpha: 0.28),
+                    ),
+                  ),
+                  child: Icon(
+                    activityIcon(activity.type),
+                    color: activityColor(activity.type),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        activity.title,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${activity.subtitle} • ${relativeTime(activity.createdAt)}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  activity.amount == 0 ? 'Live' : signedMoney(activity.amount),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: activity.amount >= 0
+                        ? AppColors.emerald
+                        : AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
         ],
       ],
     );
   }
 }
 
-class _TransactionTimeline extends StatelessWidget {
-  const _TransactionTimeline();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SectionHeader(title: 'Live activity', action: 'View all'),
-        for (final transaction in transactions) ...[
-          PremiumTransactionTile(transaction: transaction),
-          if (transaction != transactions.last) const SizedBox(height: 12),
-        ],
-      ],
-    );
-  }
+Color _assetColor(String assetId) {
+  return switch (assetId) {
+    'btc' => AppColors.orange,
+    'eth' => AppColors.cyan,
+    'sol' => AppColors.purple,
+    'link' => AppColors.emerald,
+    _ => AppColors.pink,
+  };
 }
