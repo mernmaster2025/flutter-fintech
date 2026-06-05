@@ -7,6 +7,10 @@
 .buildlog/
 .history
 
+# Local reusable prompts
+prompt.md
+prompt.mt
+
 
 
 # Flutter repo-specific
